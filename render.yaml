@@ -3,6 +3,7 @@ services:
     name: shopify-mcp
     env: node
     plan: starter
+    rootDir: shopify-mcp
     buildCommand: npm install && npm run build
     startCommand: node dist/server-http.js
     envVars:
