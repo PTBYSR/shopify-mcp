@@ -9,7 +9,7 @@
   "type": "module",
   "scripts": {
     "build": "rimraf dist && tsc",
-    "build:http": "rimraf dist && tsc --project tsconfig.json && tsc server-http.ts --outDir dist --module esnext --target ES2020",
+    "build:http": "npm run build",
     "start": "node dist/index.js",
     "start:http": "node dist/server-http.js",
     "dev": "node --loader ts-node/esm src/index.ts",

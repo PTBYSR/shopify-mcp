@@ -68,7 +68,15 @@ getCustomerOrders.initialize(shopifyClient);
 updateCustomer.initialize(shopifyClient);
 createProduct.initialize(shopifyClient);
 
-// Set up MCP server
+// Store tool handlers for direct access
+const toolHandlers: Record<string, (args: any) => Promise<any>> = {};
+
+// Helper to register a tool
+function registerTool(name: string, handler: (args: any) => Promise<any>) {
+  toolHandlers[name] = handler;
+}
+
+// Set up MCP server (for protocol compatibility, but we'll use direct handlers)
 const mcpServer = new McpServer({
   name: "shopify",
   version: "1.0.0",
@@ -76,7 +84,12 @@ const mcpServer = new McpServer({
     "MCP Server for Shopify API, enabling interaction with store data through GraphQL API"
 });
 
-// Add all tools
+// Register and add all tools
+registerTool("get-products", async (args) => {
+  const result = await getProducts.execute(args);
+  return { content: [{ type: "text", text: JSON.stringify(result) }] };
+});
+
 mcpServer.tool("get-products", {
   searchTitle: z.string().optional(),
   limit: z.number().default(10)
@@ -85,10 +98,20 @@ mcpServer.tool("get-products", {
   return { content: [{ type: "text", text: JSON.stringify(result) }] };
 });
 
+registerTool("get-product-by-id", async (args) => {
+  const result = await getProductById.execute(args);
+  return { content: [{ type: "text", text: JSON.stringify(result) }] };
+});
+
 mcpServer.tool("get-product-by-id", {
   productId: z.string().min(1)
 }, async (args) => {
   const result = await getProductById.execute(args);
+  return { content: [{ type: "text", text: JSON.stringify(result) }] };
+});
+
+registerTool("get-customers", async (args) => {
+  const result = await getCustomers.execute(args);
   return { content: [{ type: "text", text: JSON.stringify(result) }] };
 });
 
@@ -100,6 +123,11 @@ mcpServer.tool("get-customers", {
   return { content: [{ type: "text", text: JSON.stringify(result) }] };
 });
 
+registerTool("get-orders", async (args) => {
+  const result = await getOrders.execute(args);
+  return { content: [{ type: "text", text: JSON.stringify(result) }] };
+});
+
 mcpServer.tool("get-orders", {
   status: z.enum(["any", "open", "closed", "cancelled"]).default("any"),
   limit: z.number().default(10)
@@ -108,10 +136,20 @@ mcpServer.tool("get-orders", {
   return { content: [{ type: "text", text: JSON.stringify(result) }] };
 });
 
+registerTool("get-order-by-id", async (args) => {
+  const result = await getOrderById.execute(args);
+  return { content: [{ type: "text", text: JSON.stringify(result) }] };
+});
+
 mcpServer.tool("get-order-by-id", {
   orderId: z.string().min(1)
 }, async (args) => {
   const result = await getOrderById.execute(args);
+  return { content: [{ type: "text", text: JSON.stringify(result) }] };
+});
+
+registerTool("update-order", async (args) => {
+  const result = await updateOrder.execute(args);
   return { content: [{ type: "text", text: JSON.stringify(result) }] };
 });
 
@@ -148,11 +186,21 @@ mcpServer.tool("update-order", {
   return { content: [{ type: "text", text: JSON.stringify(result) }] };
 });
 
+registerTool("get-customer-orders", async (args) => {
+  const result = await getCustomerOrders.execute(args);
+  return { content: [{ type: "text", text: JSON.stringify(result) }] };
+});
+
 mcpServer.tool("get-customer-orders", {
   customerId: z.string().regex(/^\d+$/, "Customer ID must be numeric"),
   limit: z.number().default(10)
 }, async (args) => {
   const result = await getCustomerOrders.execute(args);
+  return { content: [{ type: "text", text: JSON.stringify(result) }] };
+});
+
+registerTool("update-customer", async (args) => {
+  const result = await updateCustomer.execute(args);
   return { content: [{ type: "text", text: JSON.stringify(result) }] };
 });
 
@@ -174,6 +222,11 @@ mcpServer.tool("update-customer", {
   })).optional()
 }, async (args) => {
   const result = await updateCustomer.execute(args);
+  return { content: [{ type: "text", text: JSON.stringify(result) }] };
+});
+
+registerTool("create-product", async (args) => {
+  const result = await createProduct.execute(args);
   return { content: [{ type: "text", text: JSON.stringify(result) }] };
 });
 
@@ -201,19 +254,27 @@ app.get('/health', (req, res) => {
 // MCP endpoint - accepts MCP protocol requests
 app.post('/mcp', async (req, res) => {
   try {
-    // This is a simplified HTTP interface
-    // For full MCP protocol over HTTP, you'd need to implement the MCP HTTP transport
-    // For now, provide a REST-like interface
     const { method, params } = req.body;
     
     if (method === 'tools/list') {
       // List available tools
-      const tools = await mcpServer.listTools();
-      res.json(tools);
+      const toolNames = Object.keys(toolHandlers);
+      res.json({
+        tools: toolNames.map(name => ({
+          name,
+          description: `Shopify ${name} tool`
+        }))
+      });
     } else if (method === 'tools/call') {
       // Call a tool
       const { name, arguments: args } = params;
-      const result = await mcpServer.callTool(name, args);
+      
+      if (!toolHandlers[name]) {
+        res.status(404).json({ error: `Tool '${name}' not found` });
+        return;
+      }
+      
+      const result = await toolHandlers[name](args);
       res.json(result);
     } else {
       res.status(400).json({ error: 'Unknown method' });
