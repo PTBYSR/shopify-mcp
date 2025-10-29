@@ -9,7 +9,9 @@
   "type": "module",
   "scripts": {
     "build": "rimraf dist && tsc",
+    "build:http": "rimraf dist && tsc --project tsconfig.json && tsc server-http.ts --outDir dist --module esnext --target ES2020",
     "start": "node dist/index.js",
+    "start:http": "node dist/server-http.js",
     "dev": "node --loader ts-node/esm src/index.ts",
     "test": "jest",
     "prepublishOnly": "npm run build",
@@ -34,12 +36,14 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.1",
     "dotenv": "^16.0.3",
+    "express": "^4.21.2",
     "graphql": "^16.6.0",
     "graphql-request": "^5.1.0",
     "minimist": "^1.2.8",
     "zod": "^3.21.4"
   },
   "devDependencies": {
+    "@types/express": "^4.17.25",
     "@types/jest": "^29.5.0",
     "@types/minimist": "^1.2.2",
     "@types/node": "^18.15.11",
