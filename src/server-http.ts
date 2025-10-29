@@ -86,7 +86,12 @@ const mcpServer = new McpServer({
 
 // Register and add all tools
 registerTool("get-products", async (args) => {
-  const result = await getProducts.execute(args);
+  // Ensure limit has a default value if not provided
+  const processedArgs = {
+    searchTitle: args?.searchTitle,
+    limit: args?.limit ?? 10  // Default to 10 if not provided
+  };
+  const result = await getProducts.execute(processedArgs);
   return { content: [{ type: "text", text: JSON.stringify(result) }] };
 });
 
@@ -111,7 +116,12 @@ mcpServer.tool("get-product-by-id", {
 });
 
 registerTool("get-customers", async (args) => {
-  const result = await getCustomers.execute(args);
+  // Ensure limit has a default value if not provided
+  const processedArgs = {
+    searchQuery: args?.searchQuery,
+    limit: args?.limit ?? 10  // Default to 10 if not provided
+  };
+  const result = await getCustomers.execute(processedArgs);
   return { content: [{ type: "text", text: JSON.stringify(result) }] };
 });
 
@@ -124,7 +134,12 @@ mcpServer.tool("get-customers", {
 });
 
 registerTool("get-orders", async (args) => {
-  const result = await getOrders.execute(args);
+  // Ensure defaults are provided
+  const processedArgs = {
+    status: args?.status ?? "any",
+    limit: args?.limit ?? 10  // Default to 10 if not provided
+  };
+  const result = await getOrders.execute(processedArgs);
   return { content: [{ type: "text", text: JSON.stringify(result) }] };
 });
 
@@ -187,7 +202,12 @@ mcpServer.tool("update-order", {
 });
 
 registerTool("get-customer-orders", async (args) => {
-  const result = await getCustomerOrders.execute(args);
+  // Ensure limit has a default value if not provided
+  const processedArgs = {
+    customerId: args?.customerId,
+    limit: args?.limit ?? 10  // Default to 10 if not provided
+  };
+  const result = await getCustomerOrders.execute(processedArgs);
   return { content: [{ type: "text", text: JSON.stringify(result) }] };
 });
 
@@ -267,15 +287,31 @@ app.post('/mcp', async (req, res) => {
       });
     } else if (method === 'tools/call') {
       // Call a tool
-      const { name, arguments: args } = params;
+      const { name, arguments: args } = params || {};
+      
+      if (!name) {
+        res.status(400).json({ error: 'Tool name is required' });
+        return;
+      }
       
       if (!toolHandlers[name]) {
         res.status(404).json({ error: `Tool '${name}' not found` });
         return;
       }
       
-      const result = await toolHandlers[name](args);
-      res.json(result);
+      // Ensure args is an object, not undefined or null
+      const toolArgs = args && typeof args === 'object' ? args : {};
+      
+      try {
+        const result = await toolHandlers[name](toolArgs);
+        res.json(result);
+      } catch (error: any) {
+        console.error(`Error executing tool ${name}:`, error);
+        res.status(500).json({ 
+          error: error.message || 'Tool execution failed',
+          details: error.stack 
+        });
+      }
     } else {
       res.status(400).json({ error: 'Unknown method' });
     }
